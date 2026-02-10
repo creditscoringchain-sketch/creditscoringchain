@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credit Scoring on-chain</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        :root { 
+            --accent: #00f2ff; 
+            --bg: #030308; 
+            --card: #0d0d1a; 
+            --text-main: #ffffff;
+            --text-dim: #a0a0b8;
+            --success: #00ff88;
+            --error: #ff0055;
+        }
+        
+        body { 
+            background: var(--bg); 
+            color: var(--text-main); 
+            font-family: 'Inter', 'Segoe UI', sans-serif; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+            margin: 0; 
+            background-image: radial-gradient(circle at 50% 50%, #1a1a3a 0%, #030308 100%);
+        }
+
+        .container { 
+            background: var(--card); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+            border-radius: 28px; 
+            padding: 40px; 
+            width: 100%; 
+            max-width: 420px; 
+            text-align: center; 
+            box-shadow: 0 40px 100px rgba(0,0,0,0.8); 
+            backdrop-filter: blur(10px);
+        }
+
+        h1 { 
+            font-size: 26px; 
+            font-weight: 800;
+            margin-bottom: 25px; 
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .range-container {
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .range-label {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-dim);
+            font-size: 13px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .amount-display {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--accent);
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.1);
+            height: 6px;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .btn { 
+            background: var(--accent); 
+            color: #000; 
+            border: none; 
+            padding: 18px 30px; 
+            border-radius: 16px; 
+            font-weight: 700; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+            width: 100%; 
+            font-size: 16px; 
+            margin-top: 10px;
+        }
+
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0, 242, 255, 0.3); }
+        .btn:disabled { background: #333 !important; color: #666 !important; cursor: not-allowed; transform: none !important; }
+
+        .dashboard { margin-top: 10px; padding: 20px; border-radius: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
+        .status-msg { font-size: 13px; margin-top: 20px; min-height: 20px; }
+
+        .result-card {
+            display: none;
+            margin-top: 20px;
+            padding: 25px;
+            border-radius: 20px;
+            font-weight: bold;
+            animation: fadeIn 0.5s ease;
+            line-height: 1.5;
+        }
+
+        .loader { 
+            border: 3px solid rgba(255,255,255,0.1); 
+            border-top: 3px solid var(--accent); 
+            border-radius: 50%; 
+            width: 20px; height: 20px; 
+            animation: spin 1s linear infinite; 
+            display: inline-block; 
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="font-size: 50px; margin-bottom: 15px;">🏦</div>
+    <h1>Credit Scoring on-chain</h1>
+
+    <div id="authSection">
+        <button id="connBtn" class="btn" onclick="connect()">Подключить кошелек</button>
+    </div>
+    
+    <div id="dashboard" class="dashboard" style="display:none;">
+        <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 15px; text-align: center;">
+            Аккаунт: <span id="userAddr" style="color: var(--accent);"></span>
+        </div>
+
+        <div class="range-container">
+            <div class="range-label"><span>Сумма кредита</span></div>
+            <div class="amount-display" id="amountVal">$250</div>
+            <input type="range" id="amountSlider" min="10" max="500" value="250" oninput="updateAmount(this.value)">
+        </div>
+
+        <div class="range-container">
+            <div class="range-label"><span>Срок (мес.)</span></div>
+            <div class="amount-display" id="termVal" style="color: #fff; font-size: 22px;">4 месяца</div>
+            <input type="range" id="termSlider" min="2" max="6" value="4" oninput="updateTerm(this.value)">
+        </div>
+
+        <button id="actionBtn" class="btn" onclick="processCredit()">Запросить кредит</button>
+        <div style="font-size: 11px; color: #555; margin-top: 12px; text-align: center;">Анализ профиля: 0.001 BNB</div>
+    </div>
+
+    <div id="resultBox" class="result-card"></div>
+    <div id="status" class="status-msg"></div>
+</div>
+
+<script>
+    let signer, address;
+    const CONTRACT_ADDR = "0x74630a744fcB0E50E1546f49E20E3a0e4d8FF0b0"; 
+    const BSC_API_KEY = "Y6U93JFUWVX6TBN37MB6NKVKWIPKEVAGEY"; 
+
+    function updateAmount(val) {
+        document.getElementById('amountVal').innerText = "$" + val;
+    }
+
+    function updateTerm(val) {
+        let suffix = " месяца";
+        if (val == 5 || val == 6) suffix = " месяцев";
+        document.getElementById('termVal').innerText = val + suffix;
+    }
+
+    async function connect() {
+        if (window.ethereum) {
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                address = await signer.getAddress();
+                document.getElementById('authSection').style.display = "none";
+                document.getElementById('dashboard').style.display = "block";
+                document.getElementById('userAddr').innerText = address.substring(0,6) + "..." + address.substring(38);
+                showStatus("Доступ разрешен", "#00ff88");
+            } catch (e) { showStatus("Ошибка входа", "#ff0055"); }
+        } else { alert("MetaMask не найден!"); }
+    }
+
+    async function processCredit() {
+        const btn = document.getElementById('actionBtn');
+        const amount = document.getElementById('amountSlider').value;
+        const term = document.getElementById('termSlider').value;
+        btn.disabled = true;
+        
+        try {
+            showStatus("<div class='loader'></div> Ожидание оплаты...", "#fff");
+            const contract = new ethers.Contract(CONTRACT_ADDR, ["function payForCheck() payable"], signer);
+            const tx = await contract.payForCheck({ value: ethers.utils.parseEther("0.001") });
+            
+            showStatus("<div class='loader'></div> Фиксация в блокчейне...", "#00f2ff");
+            await tx.wait();
+
+            showStatus("<div class='loader'></div> Скоринг аккаунта...", "#fff");
+            await new Promise(r => setTimeout(r, 2000));
+            await runAnalysis(amount, term);
+
+        } catch (e) {
+            showStatus("Ошибка или отказ оплаты", "#ff0055");
+            btn.disabled = false;
+        }
+    }
+
+    async function runAnalysis(reqAmount, reqTerm) {
+        const url = `https://api.bscscan.com/api?module=account&action=txlist&address=${address}&sort=asc&apikey=${BSC_API_KEY}`;
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            const resultBox = document.getElementById('resultBox');
+            document.getElementById('dashboard').style.display = "none";
+            resultBox.style.display = "block";
+            document.getElementById('status').innerHTML = "";
+
+            if (data.status === "0" || !data.result || data.result.length === 0) {
+                renderResult(false, "ОТКАЗАНО", "Кошелек не прошел проверку активности (0 транзакций).");
+                return;
+            }
+
+            const txs = data.result;
+            const firstTxTime = txs[0].timeStamp * 1000;
+            const totalVol = txs.reduce((acc, tx) => acc + parseFloat(ethers.utils.formatEther(tx.value)), 0);
+            
+            const isOldEnough = (Date.now() - firstTxTime) >= (180 * 24 * 60 * 60 * 1000); // 6 мес
+            const isVolEnough = totalVol >= 2.0;
+
+            if (isOldEnough && isVolEnough) {
+                renderResult(true, "КРЕДИТ ОДОБРЕН", `Сумма <b>$${reqAmount}</b> на срок <b>${reqTerm} мес.</b> зарезервирована за вашим кошельком. Ожидайте поступления.`);
+            } else {
+                let reason = !isOldEnough ? "Требуется история кошелька от 6 месяцев." : "Оборот по кошельку ниже 2.0 BNB.";
+                renderResult(false, "ОТКАЗАНО", reason);
+            }
+        } catch (e) { resultBox.innerHTML = "❌ ОШИБКА API"; }
+    }
+
+    function renderResult(isSuccess, title, text) {
+        const rb = document.getElementById('resultBox');
+        rb.style.background = isSuccess ? "rgba(0, 255, 136, 0.1)" : "rgba(255, 0, 85, 0.1)";
+        rb.style.color = isSuccess ? "#00ff88" : "#ff0055";
+        rb.style.border = `1px solid ${isSuccess ? "#00ff88" : "#ff0055"}`;
+        rb.innerHTML = `<div style="font-size:20px; margin-bottom:12px;">${isSuccess ? '✅' : '❌'} ${title}</div>
+                        <div style="font-size:14px; font-weight:normal; color:#e0e0e0;">${text}</div>`;
+    }
+
+    function showStatus(text, color) {
+        const s = document.getElementById('status');
+        s.innerHTML = text;
+        s.style.color = color;
+    }
+</script>
+</body>
+      </html>
+      
