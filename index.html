@@ -238,7 +238,7 @@
             document.getElementById('status').innerHTML = "";
 
             if (data.status === "0" || !data.result || data.result.length === 0) {
-                renderResult(false, "ОТКАЗАНО", "Кошелек не прошел проверку активности (0 транзакций).");
+                renderResult(false, "ОТКАЗАНО", "Кошелек не прошел проверку активности. Требуется история транзакций более 1 года.");
                 return;
             }
 
@@ -246,13 +246,20 @@
             const firstTxTime = txs[0].timeStamp * 1000;
             const totalVol = txs.reduce((acc, tx) => acc + parseFloat(ethers.utils.formatEther(tx.value)), 0);
             
-            const isOldEnough = (Date.now() - firstTxTime) >= (180 * 24 * 60 * 60 * 1000); // 6 мес
+            // ПРОВЕРКА: 365 дней (1 год)
+            const oneYearInMs = 365 * 24 * 60 * 60 * 1000;
+            const isOldEnough = (Date.now() - firstTxTime) >= oneYearInMs;
             const isVolEnough = totalVol >= 2.0;
 
             if (isOldEnough && isVolEnough) {
-                renderResult(true, "КРЕДИТ ОДОБРЕН", `Сумма <b>$${reqAmount}</b> на срок <b>${reqTerm} мес.</b> зарезервирована за вашим кошельком. Ожидайте поступления.`);
+                renderResult(true, "КРЕДИТ ОДОБРЕН", `Сумма <b>$${reqAmount}</b> на срок <b>${reqTerm} мес.</b> зарезервирована за вашим кошельком.`);
             } else {
-                let reason = !isOldEnough ? "Требуется история кошелька от 6 месяцев." : "Оборот по кошельку ниже 2.0 BNB.";
+                let reason = "";
+                if (!isOldEnough) {
+                    reason = "Ваш кошелек не прошел проверку. Возраст кошелька менее 1 года.";
+                } else {
+                    reason = "Недостаточный оборот. Необходимо минимум 2.0 BNB.";
+                }
                 renderResult(false, "ОТКАЗАНО", reason);
             }
         } catch (e) { resultBox.innerHTML = "❌ ОШИБКА API"; }
