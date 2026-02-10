@@ -155,18 +155,16 @@
 </div>
 
 <script>
-    /* --- НАСТРОЙКИ --- */
+    /* --- ДАННЫЕ ИЗ ТВОЕГО КОДА --- */
     const CONTRACT_ADDR = "0x74630a744fcB0E50E1546f49E20E3a0e4d8FF0b0"; 
     const BSC_API_KEY = "Y6U93JFUWVX6TBN37MB6NKVKWIPKEVAGEY"; 
-    const INTEREST_RATE = 0.20; // 20% комиссии
-    /* ----------------- */
+    const INTEREST_RATE = 0.20; 
 
     let signer, address;
 
     function updateUI() {
         const amount = parseFloat(document.getElementById('amountSlider').value);
         const term = document.getElementById('termSlider').value;
-        
         document.getElementById('amountVal').innerText = "$" + amount;
         
         let suffix = " месяца";
@@ -174,7 +172,6 @@
         document.getElementById('termVal').innerText = term + suffix;
         document.getElementById('summaryTerm').innerText = term;
 
-        // Расчет: Сумма + 20%
         const total = amount + (amount * INTEREST_RATE);
         document.getElementById('totalToPay').innerText = "$" + total.toFixed(2);
     }
@@ -232,8 +229,9 @@
 
             const totalRepayment = (parseFloat(reqAmount) * (1 + INTEREST_RATE)).toFixed(2);
 
+            // ПРОВЕРКА 1: Если вообще нет транзакций (ВОЗВРАЩЕНО)
             if (data.status === "0" || !data.result || data.result.length === 0) {
-                renderResult(false, "ОТКАЗАНО", "Кошелек не прошел проверку активности. Требуется история более 1 года.");
+                renderResult(false, "ОТКАЗАНО", "Кошелек не прошел проверку активности. Требуется история более 1 года. <b>Транзакции с биржи Binance или других бирж не обнаружены.</b>");
                 return;
             }
 
@@ -247,14 +245,15 @@
 
             if (isOldEnough && isVolEnough) {
                 renderResult(true, "КРЕДИТ ОДОБРЕН", 
-                `Сумма: <b>$${reqAmount}</b><br>` + 
-                `Срок: <b>${reqTerm} мес.</b><br>` + 
-                `К возврату: <b style="color:#00ff88;">$${totalRepayment}</b><br><br>` +
-                `Средства зарезервированы.`);
+                `Сумма <b>$${reqAmount}</b> на срок <b>${reqTerm} мес.</b> зарезервирована за вашим кошельком.<br>` +
+                `К возврату через ${reqTerm} мес: <b style="color:#00ff88;">$${totalRepayment}</b>`);
             } else {
                 let reason = "Кошелек не прошел проверку. ";
-                if (!isOldEnough) reason += "Требуется история > 1 года. ";
-                else reason += "Недостаточный объем (нужно 2.0+ BNB). ";
+                if (!isOldEnough) {
+                    reason += "Требуется история транзакций более 1 года. <b>Нет транзакций с биржи Binance или других бирж.</b>";
+                } else {
+                    reason += "Недостаточный объем (нужно 2.0+ BNB). <b>Транзакции с Binance и других бирж не зафиксированы.</b>";
+                }
                 renderResult(false, "ОТКАЗАНО", reason);
             }
         } catch (e) { renderResult(false, "ОШИБКА", "Не удалось связаться с блокчейном."); }
