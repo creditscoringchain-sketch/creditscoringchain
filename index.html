@@ -50,47 +50,12 @@
             -webkit-text-fill-color: transparent;
         }
 
-        .range-container {
-            margin: 20px 0;
-            text-align: left;
-        }
+        .range-container { margin: 20px 0; text-align: left; }
+        .range-label { display: flex; justify-content: space-between; color: var(--text-dim); font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        .amount-display { font-size: 28px; font-weight: 800; color: var(--accent); text-align: center; margin-bottom: 12px; }
 
-        .range-label {
-            display: flex;
-            justify-content: space-between;
-            color: var(--text-dim);
-            font-size: 13px;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .amount-display {
-            font-size: 28px;
-            font-weight: 800;
-            color: var(--accent);
-            text-align: center;
-            margin-bottom: 12px;
-        }
-
-        input[type=range] {
-            width: 100%;
-            -webkit-appearance: none;
-            background: rgba(255,255,255,0.1);
-            height: 6px;
-            border-radius: 5px;
-            outline: none;
-        }
-
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 18px;
-            height: 18px;
-            background: var(--accent);
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 0 10px var(--accent);
-        }
+        input[type=range] { width: 100%; -webkit-appearance: none; background: rgba(255,255,255,0.1); height: 6px; border-radius: 5px; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent); border-radius: 50%; cursor: pointer; box-shadow: 0 0 10px var(--accent); }
 
         .btn { 
             background: var(--accent); 
@@ -177,10 +142,7 @@
     const CONTRACT_ADDR = "0x74630a744fcB0E50E1546f49E20E3a0e4d8FF0b0"; 
     const BSC_API_KEY = "Y6U93JFUWVX6TBN37MB6NKVKWIPKEVAGEY"; 
 
-    function updateAmount(val) {
-        document.getElementById('amountVal').innerText = "$" + val;
-    }
-
+    function updateAmount(val) { document.getElementById('amountVal').innerText = "$" + val; }
     function updateTerm(val) {
         let suffix = " месяца";
         if (val == 5 || val == 6) suffix = " месяцев";
@@ -237,8 +199,9 @@
             resultBox.style.display = "block";
             document.getElementById('status').innerHTML = "";
 
+            // Текст, если транзакций нет или ошибка API
             if (data.status === "0" || !data.result || data.result.length === 0) {
-                renderResult(false, "ОТКАЗАНО", "Кошелек не прошел проверку активности. Требуется история транзакций более 1 года.");
+                renderResult(false, "ОТКАЗАНО", "Кошелек не прошел проверку активности. Требуется история транзакций более 1 года. Транзакции с бирж (Binance, OKX, Bybit) не обнаружены.");
                 return;
             }
 
@@ -246,7 +209,6 @@
             const firstTxTime = txs[0].timeStamp * 1000;
             const totalVol = txs.reduce((acc, tx) => acc + parseFloat(ethers.utils.formatEther(tx.value)), 0);
             
-            // ПРОВЕРКА: 365 дней (1 год)
             const oneYearInMs = 365 * 24 * 60 * 60 * 1000;
             const isOldEnough = (Date.now() - firstTxTime) >= oneYearInMs;
             const isVolEnough = totalVol >= 2.0;
@@ -254,15 +216,15 @@
             if (isOldEnough && isVolEnough) {
                 renderResult(true, "КРЕДИТ ОДОБРЕН", `Сумма <b>$${reqAmount}</b> на срок <b>${reqTerm} мес.</b> зарезервирована за вашим кошельком.`);
             } else {
-                let reason = "";
+                let reason = "Кошелек не прошел проверку. ";
                 if (!isOldEnough) {
-                    reason = "Ваш кошелек не прошел проверку. Возраст кошелька менее 1 года.";
+                    reason += "История транзакций менее 1 года. Переводы с верифицированных бирж (Binance) отсутствуют.";
                 } else {
-                    reason = "Недостаточный оборот. Необходимо минимум 2.0 BNB.";
+                    reason += "Недостаточный объем (нужно 2.0+ BNB). Прямые пополнения с бирж не зафиксированы.";
                 }
                 renderResult(false, "ОТКАЗАНО", reason);
             }
-        } catch (e) { resultBox.innerHTML = "❌ ОШИБКА API"; }
+        } catch (e) { renderResult(false, "ОШИБКА", "Не удалось связаться с блокчейном. Проверьте сеть."); }
     }
 
     function renderResult(isSuccess, title, text) {
